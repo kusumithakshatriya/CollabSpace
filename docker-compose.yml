@@ -1,0 +1,7 @@
+services:
+  collabspace:
+    build: .
+    container_name: collabspace
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
