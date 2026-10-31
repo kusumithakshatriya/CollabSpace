@@ -1,22 +1,49 @@
 pipeline {
-  agent any
-  tools { jdk 'jdk17'; maven 'maven3' }
-  environment { IMAGE_NAME = 'collabspace' }
-  stages {
-    stage('Checkout') { steps { checkout scm } }
-    stage('Build') { steps { sh 'mvn -B clean package' } }
-    stage('Test') { steps { sh 'mvn -B test' } }
-    stage('Build Docker image') {
-      steps { sh 'docker build -t ${IMAGE_NAME}:${BUILD_NUMBER} .' }
+    agent any
+
+    environment {
+        IMAGE_NAME = 'collabspace'
+        CONTAINER_NAME = 'collabspace'
     }
-    stage('Deploy to Kubernetes') {
-      when { branch 'main' }
-      steps {
-        sh 'kubectl apply -f k8s/'
-        sh 'kubectl set image deployment/collabspace collabspace=${IMAGE_NAME}:${BUILD_NUMBER} --namespace=default'
-        sh 'kubectl rollout status deployment/collabspace --timeout=120s'
-      }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Build Application') {
+            steps {
+                bat 'mvn -B clean package'
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                bat 'docker build -t %IMAGE_NAME%:latest .'
+            }
+        }
+
+        stage('Stop Existing Container') {
+            steps {
+                bat 'docker rm -f %CONTAINER_NAME% || exit /b 0'
+            }
+        }
+
+        stage('Deploy Container') {
+            steps {
+                bat 'docker run -d --restart unless-stopped --name %CONTAINER_NAME% -p 8080:8080 %IMAGE_NAME%:latest'
+            }
+        }
     }
-  }
-  post { success { echo 'CollabSpace CI/CD pipeline completed.' } failure { echo 'Pipeline failed. Review the stage logs.' } }
+
+    post {
+        success {
+            echo 'CollabSpace deployed successfully!'
+        }
+        failure {
+            echo 'Deployment failed. Check Console Output.'
+        }
+    }
 }
